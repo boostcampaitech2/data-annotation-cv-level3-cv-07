@@ -9,11 +9,12 @@ from tqdm import tqdm
 
 from torch.utils.data import DataLoader, ConcatDataset, Dataset
 
-
+#로드경로
 SRC_DATASET_DIR = '/data/datasets/ICDAR17_MLT'  # FIXME
+#저장경로
 DST_DATASET_DIR = '/data/datasets/ICDAR17_Korean'  # FIXME
 
-NUM_WORKERS = 32  # FIXME
+NUM_WORKERS = 32  #CPU core
 
 IMAGE_EXTENSIONS = {'.gif', '.jpg', '.png'}
 
@@ -37,7 +38,7 @@ class MLT17Dataset(Dataset):
         image_paths = {x for x in glob(osp.join(image_dir, '*')) if osp.splitext(x)[1] in
                        IMAGE_EXTENSIONS}
         label_paths = set(glob(osp.join(label_dir, '*.txt')))
-        assert len(image_paths) == len(label_paths)
+        assert len(image_paths) == len(label_paths) #이미지 파일 개수, 라벨개수 확인
 
         sample_ids, samples_info = list(), dict()
         for image_path in image_paths:
@@ -72,9 +73,15 @@ class MLT17Dataset(Dataset):
             maybe_mkdir(self.copy_images_to)
             image.save(osp.join(self.copy_images_to, osp.basename(sample_info['image_path'])))
 
-        license_tag = dict(usability=True, public=True, commercial=True, type='CC-BY-SA',
+        license_tag = dict(usability=True, 
+                           public=True, 
+                           commercial=True, 
+                           type='CC-BY-SA',
                            holder=None)
-        sample_info_ufo = dict(img_h=img_h, img_w=img_w, words=sample_info['words_info'], tags=None,
+        sample_info_ufo = dict(img_h=img_h, 
+                               img_w=img_w, 
+                               words=sample_info['words_info'], 
+                               tags=None,
                                license_tag=license_tag)
 
         return image_fname, sample_info_ufo
@@ -110,7 +117,7 @@ class MLT17Dataset(Dataset):
 
 def main():
     dst_image_dir = osp.join(DST_DATASET_DIR, 'images')
-    # dst_image_dir = None
+    # dst_image_dir = None #이미지 복사 안할 경우
 
     mlt_train = MLT17Dataset(osp.join(SRC_DATASET_DIR, 'raw/ch8_training_images'),
                              osp.join(SRC_DATASET_DIR, 'raw/ch8_training_gt'),
