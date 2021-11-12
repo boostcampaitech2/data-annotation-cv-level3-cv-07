@@ -22,8 +22,10 @@ def parse_args():
     # Conventional args
     parser.add_argument('--data_dir', type=str,
                         default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean'))
+    parser.add_argument('--add_data_dir', type=str,
+                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/camper'))
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
-                                                                        'trained_models'))
+                                                                        'temp_models'))
 
     parser.add_argument('--device', default='cuda' if cuda.is_available() else 'cpu')
     parser.add_argument('--num_workers', type=int, default=4)
@@ -43,9 +45,10 @@ def parse_args():
     return args
 
 
-def do_training(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
+def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
                 learning_rate, max_epoch, save_interval):
-    dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
+    data_dir_list = [data_dir, add_data_dir] # data를 리스트로 받아옴
+    dataset = SceneTextDataset(data_dir_list, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
     train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -53,8 +56,8 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = EAST()
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # AdamW고정 필요
+    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1) # cos annealing 필요 (restart?)
 
     model.train()
     for epoch in range(max_epoch):
