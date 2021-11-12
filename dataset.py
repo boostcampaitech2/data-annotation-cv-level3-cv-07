@@ -336,12 +336,21 @@ def filter_vertices(vertices, labels, ignore_under=0, drop_under=0):
 class SceneTextDataset(Dataset):
     def __init__(self, root_dir, split='train', image_size=1024, crop_size=512, color_jitter=True,
                  normalize=True):
-        with open(osp.join(root_dir, 'ufo/{}.json'.format(split)), 'r') as f:
-            anno = json.load(f)
+        # root로 받아온 anno를 for문을 돌면서 모들 json을 받아와 줌
+        annos = []
+        image_dir = []
+        for dir in root_dir :
+            image_dir.append(osp.join(dir, 'images'))
+            with open(osp.join(dir, 'ufo/{}.json'.format(split)), 'r') as f:
+                annos.append(json.load(f))
 
-        self.anno = anno
-        self.image_fnames = sorted(anno['images'].keys())
-        self.image_dir = osp.join(root_dir, 'images')
+        self.annos = annos
+        self.image_fnames = []
+        for anno in annos :
+            self.image_fnames.extend(sorted(anno['images'].keys()))
+        
+        self.image_dir = image_dir
+        # self.image_dir = osp.join(root_dir, 'images')
 
         self.image_size, self.crop_size = image_size, crop_size
         self.color_jitter, self.normalize = color_jitter, normalize
@@ -350,17 +359,22 @@ class SceneTextDataset(Dataset):
         return len(self.image_fnames)
 
     def __getitem__(self, idx):
+        
         image_fname = self.image_fnames[idx]
-        image_fpath = osp.join(self.image_dir, image_fname)
-
-        vertices, labels = [], []
-        for word_info in self.anno['images'][image_fname]['words'].values():
-            vertices.append(np.array(word_info['points']).flatten())
-            labels.append(int(not word_info['illegibility']))
-        vertices, labels = np.array(vertices, dtype=np.float32), np.array(labels, dtype=np.int64)
-
-        vertices, labels = filter_vertices(vertices, labels, ignore_under=10, drop_under=1)
-
+        for i, anno in enumerate(self.annos) :
+            if image_fname in anno['images'].keys() :
+                image_fpath = osp.join(self.image_dir[i], image_fname)
+                vertices, labels = [], []
+                for word_info in anno['images'][image_fname]['words'].values():
+                    vertices.append(np.array(word_info['points']).flatten())
+                    labels.append(int(not word_info['illegibility']))
+                vertices, labels = np.array(vertices, dtype=np.float32), np.array(labels, dtype=np.int64)
+                vertices, labels = filter_vertices(vertices, labels, ignore_under=10, drop_under=1)
+                break
+            else :
+                continue
+        
+        
         image = Image.open(image_fpath)
         image, vertices = resize_img(image, vertices, self.image_size)
         image, vertices = adjust_height(image, vertices)
