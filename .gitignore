@@ -216,3 +216,4 @@ $RECYCLE.BIN/
 wandb
 *.pth
 *.jpg
+*.pyc
