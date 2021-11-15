@@ -9,7 +9,7 @@ def maybe_mkdir(x):
     if not osp.exists(x):
         os.makedirs(x)
         
-add_data_dir = os.environ.get('SM_CHANNEL_TRAIN', '../input/data/camper')
+add_data_dir = os.environ.get('SM_CHANNEL_TRAIN', '../../input/data/camper')
 # 여기 부분 가지고 계신 폴더구성에 맞추어 수정해주시구요
 
 with open(osp.join(add_data_dir, 'ufo/{}.json'.format('annotation')), 'r') as f:
