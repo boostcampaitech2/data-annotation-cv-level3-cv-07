@@ -14,7 +14,7 @@ from tqdm import tqdm
 from east_dataset import EASTDataset
 from dataset import SceneTextDataset
 from model import EAST
-
+import wandb 
 
 def parse_args():
     parser = ArgumentParser()
@@ -22,8 +22,10 @@ def parse_args():
     # Conventional args
     parser.add_argument('--data_dir', type=str,
                         default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean'))
+    parser.add_argument('--add_data_dir', type=str,
+                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/camper'))
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
-                                                                        'trained_models'))
+                                                                        'temp_models'))
 
     parser.add_argument('--device', default='cuda' if cuda.is_available() else 'cpu')
     parser.add_argument('--num_workers', type=int, default=4)
@@ -43,9 +45,10 @@ def parse_args():
     return args
 
 
-def do_training(data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
+def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
                 learning_rate, max_epoch, save_interval):
-    dataset = SceneTextDataset(data_dir, split='train', image_size=image_size, crop_size=input_size)
+    data_dir_list = [data_dir, add_data_dir] # data를 리스트로 받아옴
+    dataset = SceneTextDataset(data_dir_list, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
     train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
@@ -53,8 +56,8 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = EAST()
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # AdamW고정 필요
+    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1) # cos annealing 필요 (restart?)
 
     model.train()
     for epoch in range(max_epoch):
@@ -73,15 +76,29 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
                 pbar.update(1)
                 val_dict = {
-                    'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'],
+                    'Cls loss': extra_info['cls_loss'],
+                    'Angle loss': extra_info['angle_loss'],
                     'IoU loss': extra_info['iou_loss']
                 }
                 pbar.set_postfix(val_dict)
+
+                wandb.log({
+                    "train/loss" : loss_val,
+                    "train/Cls_loss": extra_info['cls_loss'],
+                    "train/Angle_loss" : extra_info['angle_loss'],
+                    "train/IoU_loss" : extra_info['iou_loss'],
+                })
+        
 
         scheduler.step()
 
         print('Mean loss: {:.4f} | Elapsed time: {}'.format(
             epoch_loss / num_batches, timedelta(seconds=time.time() - epoch_start)))
+
+        wandb.log({
+            "train/Mean loss" : epoch_loss / num_batches,
+            "epoch" : epoch
+        })
 
         if (epoch + 1) % save_interval == 0:
             if not osp.exists(model_dir):
@@ -92,6 +109,9 @@ def do_training(data_dir, model_dir, device, image_size, input_size, num_workers
 
 
 def main(args):
+    wandb.init(project='OCR',name="merge data")
+    wandb.config.update(args)
+    
     do_training(**args.__dict__)
 
 
