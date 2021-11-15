@@ -27,7 +27,7 @@ def parse_args():
     parser.add_argument('--add_data_dir', type=str,
                         default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/camper'))
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
-                                                                        'temp_models'))
+                                                                        '_models'))
 
     parser.add_argument('--device', default='cuda' if cuda.is_available() else 'cpu')
     parser.add_argument('--num_workers', type=int, default=4)
@@ -91,7 +91,8 @@ def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_siz
                     })
                 pbar.set_postfix(val_dict)
             wandb.log({
-                "epoch/loss" : epoch_loss / num_batches
+                "epoch/loss" : epoch_loss / num_batches,
+                "epoch" : epoch + 1
             })
         scheduler.step()
 
@@ -102,7 +103,7 @@ def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_siz
             if not osp.exists(model_dir):
                 os.makedirs(model_dir)
 
-            ckpt_fpath = osp.join(model_dir, 'latest.pth')
+            ckpt_fpath = osp.join(model_dir, f'epoch_{epoch+1}.pth')
             torch.save(model.state_dict(), ckpt_fpath)
     wandb.finish()
 
