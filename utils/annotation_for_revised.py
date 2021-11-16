@@ -31,7 +31,7 @@ for img_name, img_info in tqdm(anno.items()) :
         continue
     for obj, obj_info in img_info['words'].items() :
         # illegibility는 전부 단어 이므로 false
-        anno_temp[img_name]['words'][obj]['illegibility'] = False
+        # anno_temp[img_name]['words'][obj]['illegibility'] = False
         if len(img_info['words'][obj]['points']) == 4 :
             count_normal += 1
             continue
@@ -75,5 +75,5 @@ anno = {'images': anno_temp}
 
 ufo_dir = osp.join('../input/data/camper', 'ufo')
 maybe_mkdir(ufo_dir)
-with open(osp.join(ufo_dir, 'trains.json'), 'w') as f:
+with open(osp.join(ufo_dir, 'train.json'), 'w') as f:
     json.dump(anno, f, indent=4)

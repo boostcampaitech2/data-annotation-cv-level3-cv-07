@@ -27,7 +27,7 @@ def parse_args():
     parser.add_argument('--add_data_dir', type=str,
                         default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/camper'))
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
-                                                                        '_models'))
+                                                                        'adamW_models'))
 
     parser.add_argument('--device', default='cuda' if cuda.is_available() else 'cpu')
     parser.add_argument('--num_workers', type=int, default=4)
@@ -36,7 +36,7 @@ def parse_args():
     parser.add_argument('--input_size', type=int, default=512)
     parser.add_argument('--batch_size', type=int, default=12)
     parser.add_argument('--learning_rate', type=float, default=1e-3)
-    parser.add_argument('--max_epoch', type=int, default=200)
+    parser.add_argument('--max_epoch', type=int, default=131)
     parser.add_argument('--save_interval', type=int, default=5)
 
     args = parser.parse_args()
@@ -58,7 +58,8 @@ def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_siz
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = EAST()
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # AdamW고정 필요
+    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # AdamW고정 필요
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1) # cos annealing 필요 (restart?)
 
     wandb.watch(model) 
@@ -92,7 +93,7 @@ def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_siz
                 pbar.set_postfix(val_dict)
             wandb.log({
                 "epoch/loss" : epoch_loss / num_batches,
-                "epoch" : epoch + 1
+                "epoch" : epoch + 1,
             })
         scheduler.step()
 
