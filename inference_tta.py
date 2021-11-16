@@ -40,7 +40,7 @@ def parse_args():
     # Conventional args
     parser.add_argument('--data_dir', default=os.environ.get('SM_CHANNEL_EVAL')) 
     # default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean') # default=os.environ.get('SM_CHANNEL_EVAL')
-    parser.add_argument('--model_dir', default=os.environ.get('SM_CHANNEL_MODEL', 'revised_models'))# trained_models
+    parser.add_argument('--model_dir', default=os.environ.get('SM_CHANNEL_MODEL', 'adamW_models'))# trained_models
     parser.add_argument('--output_dir', default=os.environ.get('SM_OUTPUT_DATA_DIR', 'predictions')) 
     # default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean') # default=os.environ.get('SM_OUTPUT_DATA_DIR', 'predictions')
     parser.add_argument('--device', default='cuda' if cuda.is_available() else 'cpu')
