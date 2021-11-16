@@ -336,7 +336,7 @@ def filter_vertices(vertices, labels, ignore_under=0, drop_under=0):
 class SceneTextDataset(Dataset):
     def __init__(self, root_dir, split='train', image_size=1024, crop_size=512, color_jitter=True,
                  normalize=True):
-        # root로 받아온 anno를 for문을 돌면서 모들 json을 받아와 줌
+        # appending root info(root 정보들을 담은 리스트 생성)
         annos = []
         image_dir = []
         for dir in root_dir :
@@ -346,6 +346,7 @@ class SceneTextDataset(Dataset):
 
         self.annos = annos
         self.image_fnames = []
+        # put all images in image_fname for random calling (모든 이미지를 랜덤하게 불러주기 위해 하나에 모음)
         for anno in annos :
             self.image_fnames.extend(sorted(anno['images'].keys()))
         
@@ -360,8 +361,11 @@ class SceneTextDataset(Dataset):
 
     def __getitem__(self, idx):
         
+        # choose one image (1개의 이미지를 뽑습니다.)
         image_fname = self.image_fnames[idx]
+        # match annotation file, image (어노테이션 파일과 이미지를 매칭해줍니다.)
         for i, anno in enumerate(self.annos) :
+            # if image, annotation are matched setting & break (매칭이 성사되면 처리를 하고 념깁니다.)
             if image_fname in anno['images'].keys() :
                 image_fpath = osp.join(self.image_dir[i], image_fname)
                 vertices, labels = [], []
@@ -371,6 +375,7 @@ class SceneTextDataset(Dataset):
                 vertices, labels = np.array(vertices, dtype=np.float32), np.array(labels, dtype=np.int64)
                 vertices, labels = filter_vertices(vertices, labels, ignore_under=10, drop_under=1)
                 break
+            # else continue matching annotation file and image (그렇지 않으면 짝을 찾아 떠나게 합니다.)
             else :
                 continue
         
