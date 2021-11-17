@@ -122,6 +122,12 @@ def rotate_bbox(bbox, theta, image_size):
 def scale_back_bbox(bbox):
     return bbox/2
 
+# 작업하다 tta는  불필요하다고 느껴서 작업 멈춤
+# def delete_over_size(detected_bbox, image_size) :
+#     box_list_temp = np.zeros_like
+#     for i, detected_box in enumerate(detected_bbox) :
+        
+
 # 아직 출력시 405.89563 이런식이여야 하는 데 4.058956345e+02같은 문제가 잔존 제출시 이 부분이 점수 감점일 듯
 def do_inference(model, ckpt_fpath, data_dir, input_size, batch_size, split='public'):
     model.load_state_dict(torch.load(ckpt_fpath, map_location='cpu'))
@@ -181,8 +187,9 @@ def do_inference(model, ckpt_fpath, data_dir, input_size, batch_size, split='pub
                 detected_box = np.array(detected_box, dtype='object')
                 # 한 이미지에서 나온 것이므로 합쳐서 보내줍니다.
                 detected_box = np.concatenate(detected_box, axis=0)
+                # 
                 # 여기서 나온 box결과들을 앙상블 하고
-                detected_box = ensemble(detected_box, iou_threshold=0.1)
+                detected_box = ensemble(detected_box, iou_threshold=0.1)                
                 print(detected_box)
                 # 앙상블된 결과를 추가해준다.
                 by_sample_bboxes.append(detected_box)
