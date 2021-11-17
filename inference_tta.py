@@ -37,13 +37,13 @@ def parse_args():
     parser = ArgumentParser()
 
     # Conventional args
-    parser.add_argument('--data_dir', default=os.environ.get('SM_CHANNEL_EVAL')) 
-    # parser.add_argument('--data_dir', default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean')) 
+    # parser.add_argument('--data_dir', default=os.environ.get('SM_CHANNEL_EVAL')) 
+    parser.add_argument('--data_dir', default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean')) 
     
     parser.add_argument('--model_dir', default=os.environ.get('SM_CHANNEL_MODEL', 'adamW_models'))# trained_models
     
-    parser.add_argument('--output_dir', default=os.environ.get('SM_OUTPUT_DATA_DIR', 'predictions')) 
-    # parser.add_argument('--output_dir', default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean')) 
+    # parser.add_argument('--output_dir', default=os.environ.get('SM_OUTPUT_DATA_DIR', 'predictions')) 
+    parser.add_argument('--output_dir', default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean')) 
     
     parser.add_argument('--device', default='cuda' if cuda.is_available() else 'cpu')
     parser.add_argument('--input_size', type=int, default=1024)
@@ -56,7 +56,14 @@ def parse_args():
 
     return args
 
-# 앙상블은 위한 코드
+# 앙상블은 위한 코드 -> 이 부분 조금 더 고민을 해볼 필요성이 있어보입니다.
+'''
+Need_to_discuss!
+기존 nms는 score을 기준으로 남겨주었는데 이번꺼는 기준이 크기가 큰 것이기 때문에 장단점이 있습니다.
+장 - 글자 전체를 가져갈 확률이 높음, 상대적으로 글자가 있으면 예측해줄 확률이 높아짐
+단 - 크기가 크면 단어가 아닌 영역을 가져갈 확률이 높아짐, 글자를 가져갔어도 중간에 공백인 부분을 가져갈 확률이 높아짐
+이 모델 한정 심지어 음수를 예측해주기도 합니다. 따라서 단점이 생각보다 크게 다가올 수 있는 영역입니다.
+'''
 def ensemble(bboxes, iou_threshold) :
     # 살릴 박스를 정하는 부분
     keep = np.ones(len(bboxes))
@@ -124,6 +131,9 @@ def do_inference(model, ckpt_fpath, data_dir, input_size, batch_size, split='pub
 
     images = []
     
+    # 지수표기를 막아줍니다.
+    np.set_printoptions(precision=6, suppress=True)
+    
     for image_fpath in tqdm(glob(osp.join(data_dir, '{}/*'.format(split)))):
         image_fnames.append(osp.basename(image_fpath))
         
@@ -141,7 +151,7 @@ def do_inference(model, ckpt_fpath, data_dir, input_size, batch_size, split='pub
             # 총 트랜스폼의 수와 같다면
             if len(images) == len(transforms) :
                 detected_box = detect(model, images, input_size) # 하나의 배치처럼 전부 이미지를 infe하고
-                # for문 2개를돌면서 박스를 다시 deaug해줍니다. (이부분 아직 순서 관련해서 문제 있을 수 있습니다.)
+                # for문 2개를돌면서 박스를 다시 deaug해줍니다.
                 for idx, detected_box_img in enumerate(detected_box) :
                     for i, one_box in enumerate(detected_box_img) :
                         if (idx+1) % 2 == 0 :
@@ -166,9 +176,14 @@ def do_inference(model, ckpt_fpath, data_dir, input_size, batch_size, split='pub
                                 detected_box_img[i] = rotate_bbox(one_box, 270, image_size)
                                 if (idx) >= 8 : detected_box_img[i] = flip_horizontal_bbox(one_box, image_size)
                     detected_box[idx] = detected_box_img
+                    
+                # list로 되어 있는 부분을 np.array로 변경시켜줍니다.
+                detected_box = np.array(detected_box, dtype='object')
+                # 한 이미지에서 나온 것이므로 합쳐서 보내줍니다.
                 detected_box = np.concatenate(detected_box, axis=0)
                 # 여기서 나온 box결과들을 앙상블 하고
-                detected_box = ensemble(detected_box, iou_threshold=0.02)
+                detected_box = ensemble(detected_box, iou_threshold=0.1)
+                print(detected_box)
                 # 앙상블된 결과를 추가해준다.
                 by_sample_bboxes.append(detected_box)
                 images = []
