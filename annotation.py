@@ -73,7 +73,7 @@ print(count_none_anno)
 
 anno = {'images': anno_temp}
 
-ufo_dir = osp.join('../input/data/camper', 'ufo')
-maybe_mkdir(ufo_dir)
-with open(osp.join(ufo_dir, 'trains.json'), 'w') as f:
-    json.dump(anno, f, indent=4)
+# ufo_dir = osp.join('../input/data/camper', 'ufo')
+# maybe_mkdir(ufo_dir)
+# with open(osp.join(ufo_dir, 'trains.json'), 'w') as f:
+#     json.dump(anno, f, indent=4)

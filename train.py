@@ -14,7 +14,9 @@ from tqdm import tqdm
 from east_dataset import EASTDataset
 from dataset import SceneTextDataset
 from model import EAST
-import wandb 
+
+import wandb
+
 
 def parse_args():
     parser = ArgumentParser()
@@ -24,17 +26,20 @@ def parse_args():
                         default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean'))
     parser.add_argument('--add_data_dir', type=str,
                         default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/camper'))
+    parser.add_argument('--add_data_dirs', type=str,
+                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/aihub'))
+
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
-                                                                        'temp_models'))
+                                                                        '_models'))
 
     parser.add_argument('--device', default='cuda' if cuda.is_available() else 'cpu')
     parser.add_argument('--num_workers', type=int, default=4)
 
     parser.add_argument('--image_size', type=int, default=1024)
     parser.add_argument('--input_size', type=int, default=512)
-    parser.add_argument('--batch_size', type=int, default=12)
-    parser.add_argument('--learning_rate', type=float, default=1e-3)
-    parser.add_argument('--max_epoch', type=int, default=200)
+    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--learning_rate', type=float, default=1e-4)
+    parser.add_argument('--max_epoch', type=int, default=131)
     parser.add_argument('--save_interval', type=int, default=5)
 
     args = parser.parse_args()
@@ -45,20 +50,25 @@ def parse_args():
     return args
 
 
-def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
+def do_training(data_dir, add_data_dir, add_data_dirs, model_dir, device, image_size, input_size, num_workers, batch_size,
                 learning_rate, max_epoch, save_interval):
-    data_dir_list = [data_dir, add_data_dir] # data를 리스트로 받아옴
+    data_dir_list = [data_dir, add_data_dir, add_data_dirs] # data를 리스트로 받아옴
     dataset = SceneTextDataset(data_dir_list, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
-    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+    train_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, drop_last=True)
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = EAST()
+    model.load_state_dict(torch.load('/opt/ml/code/pths/epoch_150.pth', map_location='cpu'))
+    
     model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # AdamW고정 필요
+    # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # AdamW고정 필요
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
     scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1) # cos annealing 필요 (restart?)
 
+    wandb.watch(model) 
+    
     model.train()
     for epoch in range(max_epoch):
         epoch_loss, epoch_start = 0, time.time()
@@ -76,42 +86,41 @@ def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_siz
 
                 pbar.update(1)
                 val_dict = {
-                    'Cls loss': extra_info['cls_loss'],
-                    'Angle loss': extra_info['angle_loss'],
+                    'Cls loss': extra_info['cls_loss'], 'Angle loss': extra_info['angle_loss'],
                     'IoU loss': extra_info['iou_loss']
                 }
-                pbar.set_postfix(val_dict)
-
                 wandb.log({
                     "train/loss" : loss_val,
                     "train/Cls_loss": extra_info['cls_loss'],
                     "train/Angle_loss" : extra_info['angle_loss'],
                     "train/IoU_loss" : extra_info['iou_loss'],
-                })
-        
-
+                    })
+                pbar.set_postfix(val_dict)
+            wandb.log({
+                "epoch/loss" : epoch_loss / num_batches,
+                "epoch" : epoch + 1,
+            })
         scheduler.step()
 
         print('Mean loss: {:.4f} | Elapsed time: {}'.format(
             epoch_loss / num_batches, timedelta(seconds=time.time() - epoch_start)))
 
-        wandb.log({
-            "train/Mean loss" : epoch_loss / num_batches,
-            "epoch" : epoch
-        })
-
         if (epoch + 1) % save_interval == 0:
             if not osp.exists(model_dir):
                 os.makedirs(model_dir)
 
-            ckpt_fpath = osp.join(model_dir, 'latest.pth')
+            ckpt_fpath = osp.join(model_dir, f'epoch_{epoch+1}.pth')
             torch.save(model.state_dict(), ckpt_fpath)
+    wandb.finish()
 
 
 def main(args):
-    wandb.init(project='OCR',name="merge data")
+    wandb.init(
+        project='OCR',
+        name='start150_e4'
+    )
     wandb.config.update(args)
-    
+
     do_training(**args.__dict__)
 
 
