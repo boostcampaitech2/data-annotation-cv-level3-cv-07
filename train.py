@@ -39,7 +39,7 @@ def parse_args():
     parser.add_argument('--input_size', type=int, default=512)
     parser.add_argument('--batch_size', type=int, default=12)
     parser.add_argument('--learning_rate', type=float, default=1e-3)
-    parser.add_argument('--max_epoch', type=int, default=200)
+    parser.add_argument('--max_epoch', type=int, default=131)
     parser.add_argument('--save_interval', type=int, default=5)
 
     args = parser.parse_args()
@@ -48,7 +48,6 @@ def parse_args():
         raise ValueError('`input_size` must be a multiple of 32')
 
     return args
-    # add_data_dir2,
 def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
                 learning_rate, max_epoch, save_interval):
     data_dir_list = [data_dir, add_data_dir] # data를 리스트로 받아옴 # , add_data_dir2
@@ -61,8 +60,8 @@ def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_siz
     model = EAST()
     model.to(device)
     # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # AdamW고정 필요
-    # optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
-    optimizer = torch.optim.NAdam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, momentum_decay=0.004)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
+    # optimizer = torch.optim.NAdam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, momentum_decay=0.004)
     
     # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1) # cos annealing 필요 (restart?)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epoch, eta_min=0)
