@@ -45,8 +45,7 @@ def parse_args():
         raise ValueError('`input_size` must be a multiple of 32')
 
     return args
-
-
+    
 def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
                 learning_rate, max_epoch, save_interval):
     data_dir_list = [data_dir, add_data_dir] # data를 리스트로 받아옴
@@ -60,7 +59,8 @@ def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_siz
     model.to(device)
     # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # AdamW고정 필요
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1) # cos annealing 필요 (restart?)
+    # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1) # cos annealing 필요 (restart?)
+    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epoch, eta_min=0)
 
     wandb.watch(model) 
     
@@ -94,6 +94,7 @@ def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_siz
             wandb.log({
                 "epoch/loss" : epoch_loss / num_batches,
                 "epoch" : epoch + 1,
+                'learning_rate': scheduler.optimizer.param_groups[0]['lr']
             })
         scheduler.step()
 
