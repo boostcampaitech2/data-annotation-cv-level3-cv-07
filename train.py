@@ -23,23 +23,23 @@ def parse_args():
 
     # Conventional args
     parser.add_argument('--data_dir', type=str,
-                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean'))
+                        default=os.environ.get('SM_CHANNEL_TRAIN', '/opt/ml/input/data/ICDAR17_Korean'))
     parser.add_argument('--add_data_dir', type=str,
-                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/camper'))
-    parser.add_argument('--add_data_dirs', type=str,
-                        default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/aihub'))
-
+                        default=os.environ.get('SM_CHANNEL_TRAIN', '/opt/ml/input/data/camper'))
+    # parser.add_argument('--add_data_dir2', type=str,
+    #                     default=os.environ.get('SM_CHANNEL_TRAIN', '/opt/ml/input/data/aihub'))
+    
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
-                                                                        '_models'))
+                                                                        'Nadam_models'))
 
     parser.add_argument('--device', default='cuda' if cuda.is_available() else 'cpu')
     parser.add_argument('--num_workers', type=int, default=4)
 
     parser.add_argument('--image_size', type=int, default=1024)
     parser.add_argument('--input_size', type=int, default=512)
-    parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--learning_rate', type=float, default=1e-4)
-    parser.add_argument('--max_epoch', type=int, default=131)
+    parser.add_argument('--batch_size', type=int, default=12)
+    parser.add_argument('--learning_rate', type=float, default=1e-3)
+    parser.add_argument('--max_epoch', type=int, default=200)
     parser.add_argument('--save_interval', type=int, default=5)
 
     args = parser.parse_args()
@@ -48,11 +48,10 @@ def parse_args():
         raise ValueError('`input_size` must be a multiple of 32')
 
     return args
-
-
-def do_training(data_dir, add_data_dir, add_data_dirs, model_dir, device, image_size, input_size, num_workers, batch_size,
+    
+def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
                 learning_rate, max_epoch, save_interval):
-    data_dir_list = [data_dir, add_data_dir, add_data_dirs] # data를 리스트로 받아옴
+    data_dir_list = [data_dir, add_data_dir] # data를 리스트로 받아옴
     dataset = SceneTextDataset(data_dir_list, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
@@ -60,12 +59,13 @@ def do_training(data_dir, add_data_dir, add_data_dirs, model_dir, device, image_
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = EAST()
-    model.load_state_dict(torch.load('/opt/ml/code/pths/epoch_150.pth', map_location='cpu'))
-    
     model.to(device)
     # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # AdamW고정 필요
-    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
-    scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1) # cos annealing 필요 (restart?)
+    # optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
+    optimizer = torch.optim.NAdam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, momentum_decay=0.004)
+    
+    # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1) # cos annealing 필요 (restart?)
+    scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epoch, eta_min=0)
 
     wandb.watch(model) 
     
@@ -99,6 +99,7 @@ def do_training(data_dir, add_data_dir, add_data_dirs, model_dir, device, image_
             wandb.log({
                 "epoch/loss" : epoch_loss / num_batches,
                 "epoch" : epoch + 1,
+                'learning_rate': scheduler.optimizer.param_groups[0]['lr']
             })
         scheduler.step()
 
@@ -117,7 +118,7 @@ def do_training(data_dir, add_data_dir, add_data_dirs, model_dir, device, image_
 def main(args):
     wandb.init(
         project='OCR',
-        name='start150_e4'
+        name='last'
     )
     wandb.config.update(args)
 
