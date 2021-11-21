@@ -26,8 +26,11 @@ def parse_args():
                         default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/ICDAR17_Korean'))
     parser.add_argument('--add_data_dir', type=str,
                         default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/camper'))
+    # parser.add_argument('--add_data_dir2', type=str,
+    #                     default=os.environ.get('SM_CHANNEL_TRAIN', '../input/data/aihub'))
+    
     parser.add_argument('--model_dir', type=str, default=os.environ.get('SM_MODEL_DIR',
-                                                                        'adamW_models'))
+                                                                        'Nadam_models'))
 
     parser.add_argument('--device', default='cuda' if cuda.is_available() else 'cpu')
     parser.add_argument('--num_workers', type=int, default=4)
@@ -45,10 +48,9 @@ def parse_args():
         raise ValueError('`input_size` must be a multiple of 32')
 
     return args
-    
 def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_size, num_workers, batch_size,
                 learning_rate, max_epoch, save_interval):
-    data_dir_list = [data_dir, add_data_dir] # data를 리스트로 받아옴
+    data_dir_list = [data_dir, add_data_dir] # data를 리스트로 받아옴 # , add_data_dir2
     dataset = SceneTextDataset(data_dir_list, split='train', image_size=image_size, crop_size=input_size)
     dataset = EASTDataset(dataset)
     num_batches = math.ceil(len(dataset) / batch_size)
@@ -59,6 +61,8 @@ def do_training(data_dir, add_data_dir, model_dir, device, image_size, input_siz
     model.to(device)
     # optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # AdamW고정 필요
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, amsgrad=False)
+    # optimizer = torch.optim.NAdam(model.parameters(), lr=learning_rate, betas=(0.9, 0.999), eps=1e-08, weight_decay=0.01, momentum_decay=0.004)
+    
     # scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=[max_epoch // 2], gamma=0.1) # cos annealing 필요 (restart?)
     scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=max_epoch, eta_min=0)
 
